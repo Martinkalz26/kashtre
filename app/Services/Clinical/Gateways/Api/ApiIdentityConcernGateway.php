@@ -25,11 +25,18 @@ class ApiIdentityConcernGateway implements IdentityConcernGateway
         );
     }
 
+    /**
+     * Confirmed live against Clinical (2026-09-11): GET on
+     * clinical/patients/{id}/identity-concerns returns 405 — that path is
+     * POST-only (reporting). The facility-wide clinical/identity-concerns
+     * collection does accept GET and a patient_id filter, so list-for-one-
+     * patient goes through there instead.
+     */
     public function forPatient(ClinicalActor $actor, string $patientId): array
     {
         $data = $this->client->get(
-            "clinical/patients/{$patientId}/identity-concerns",
-            [],
+            'clinical/identity-concerns',
+            ['patient_id' => $patientId],
             ['business_id' => $actor->businessId],
         );
 

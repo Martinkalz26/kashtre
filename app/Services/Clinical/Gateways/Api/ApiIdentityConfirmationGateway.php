@@ -26,16 +26,15 @@ class ApiIdentityConfirmationGateway implements IdentityConfirmationGateway
         );
     }
 
+    /**
+     * Confirmed live against Clinical (2026-09-11): GET on this same path
+     * returns 405 — the route exists for POST only. The guide's own table
+     * documents just "POST .../identity-confirmations" for this capability,
+     * with no read-back endpoint, so this returns empty rather than making
+     * a call known to fail. Revisit once Clinical ships a list endpoint.
+     */
     public function forPatient(ClinicalActor $actor, string $patientId): array
     {
-        $data = $this->client->get(
-            "clinical/patients/{$patientId}/identity-confirmations",
-            [],
-            ['business_id' => $actor->businessId],
-        );
-
-        $rows = array_is_list($data) ? $data : ($data['items'] ?? $data['data'] ?? []);
-
-        return array_values(array_filter($rows, 'is_array'));
+        return [];
     }
 }

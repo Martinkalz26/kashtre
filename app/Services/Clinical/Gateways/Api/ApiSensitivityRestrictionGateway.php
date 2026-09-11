@@ -12,17 +12,18 @@ class ApiSensitivityRestrictionGateway implements SensitivityRestrictionGateway
     {
     }
 
+    /**
+     * Confirmed live against Clinical (2026-09-11): GET on
+     * clinical/sensitivity-restrictions returns 405 regardless of query
+     * params, and clinical/patients/{id}/sensitivity-restrictions is a 404
+     * — there is no list/read-back route at all yet. Matches the guide's
+     * own framing ("Live as a primitive — not yet consulted by ... export
+     * endpoints"): this is create/lift only today. Returns empty rather
+     * than calling a route known to fail; revisit once Clinical ships one.
+     */
     public function forPatient(ClinicalActor $actor, string $patientId): array
     {
-        $data = $this->client->get(
-            'clinical/sensitivity-restrictions',
-            ['patient_id' => $patientId],
-            ['business_id' => $actor->businessId],
-        );
-
-        $rows = array_is_list($data) ? $data : ($data['items'] ?? $data['data'] ?? []);
-
-        return array_values(array_filter($rows, 'is_array'));
+        return [];
     }
 
     public function restrict(ClinicalActor $actor, string $patientId, array $payload): array
