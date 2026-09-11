@@ -37,6 +37,14 @@
                 @livewire('clinical.content-governance-panel')
                 @livewire('clinical.interoperability-panel')
             </div>
+
+            {{-- SRD v6.1 Phase 1 — governance primitives (staff-level, not per-patient). --}}
+            <div class="mt-6 space-y-6">
+                @livewire('clinical.client-space-assignments-panel')
+                @livewire('clinical.privileges-panel')
+                @livewire('clinical.delegations-panel')
+                @livewire('clinical.permission-catalog-panel')
+            </div>
         </div>
     </div>
 </x-app-layout>

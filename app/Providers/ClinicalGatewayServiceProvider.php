@@ -5,6 +5,15 @@ namespace App\Providers;
 use App\Contracts\Clinical\AiUseCaseGateway;
 use App\Contracts\Clinical\AuditTrailGateway;
 use App\Contracts\Clinical\CareAccessGateway;
+use App\Contracts\Clinical\ClientSpaceAssignmentGateway;
+use App\Contracts\Clinical\PrivilegeGateway;
+use App\Contracts\Clinical\DelegationGateway;
+use App\Contracts\Clinical\SensitivityRestrictionGateway;
+use App\Contracts\Clinical\PermissionCatalogGateway;
+use App\Contracts\Clinical\IdentityConfirmationGateway;
+use App\Contracts\Clinical\IdentityConcernGateway;
+use App\Contracts\Clinical\EncounterGateway;
+use App\Contracts\Clinical\PatientWorkspaceGateway;
 use App\Contracts\Clinical\ContentGovernanceGateway;
 use App\Contracts\Clinical\EngagementGateway;
 use App\Contracts\Clinical\InteroperabilityGateway;
@@ -39,6 +48,15 @@ use App\Contracts\Clinical\WorkOrderGateway;
 use App\Services\Clinical\Gateways\Api\ApiAiUseCaseGateway;
 use App\Services\Clinical\Gateways\Api\ApiAuditTrailGateway;
 use App\Services\Clinical\Gateways\Api\ApiCareAccessGateway;
+use App\Services\Clinical\Gateways\Api\ApiClientSpaceAssignmentGateway;
+use App\Services\Clinical\Gateways\Api\ApiPrivilegeGateway;
+use App\Services\Clinical\Gateways\Api\ApiDelegationGateway;
+use App\Services\Clinical\Gateways\Api\ApiSensitivityRestrictionGateway;
+use App\Services\Clinical\Gateways\Api\ApiPermissionCatalogGateway;
+use App\Services\Clinical\Gateways\Api\ApiIdentityConfirmationGateway;
+use App\Services\Clinical\Gateways\Api\ApiIdentityConcernGateway;
+use App\Services\Clinical\Gateways\Api\ApiEncounterGateway;
+use App\Services\Clinical\Gateways\Api\ApiPatientWorkspaceGateway;
 use App\Services\Clinical\Gateways\Api\ApiContentGovernanceGateway;
 use App\Services\Clinical\Gateways\Api\ApiEngagementGateway;
 use App\Services\Clinical\Gateways\Api\ApiInteroperabilityGateway;
@@ -73,6 +91,15 @@ use App\Services\Clinical\Gateways\Api\ApiWorkOrderGateway;
 use App\Services\Clinical\Gateways\Local\LocalAiUseCaseGateway;
 use App\Services\Clinical\Gateways\Local\LocalAuditTrailGateway;
 use App\Services\Clinical\Gateways\Local\LocalCareAccessGateway;
+use App\Services\Clinical\Gateways\Local\LocalClientSpaceAssignmentGateway;
+use App\Services\Clinical\Gateways\Local\LocalPrivilegeGateway;
+use App\Services\Clinical\Gateways\Local\LocalDelegationGateway;
+use App\Services\Clinical\Gateways\Local\LocalSensitivityRestrictionGateway;
+use App\Services\Clinical\Gateways\Local\LocalPermissionCatalogGateway;
+use App\Services\Clinical\Gateways\Local\LocalIdentityConfirmationGateway;
+use App\Services\Clinical\Gateways\Local\LocalIdentityConcernGateway;
+use App\Services\Clinical\Gateways\Local\LocalEncounterGateway;
+use App\Services\Clinical\Gateways\Local\LocalPatientWorkspaceGateway;
 use App\Services\Clinical\Gateways\Local\LocalContentGovernanceGateway;
 use App\Services\Clinical\Gateways\Local\LocalEngagementGateway;
 use App\Services\Clinical\Gateways\Local\LocalInteroperabilityGateway;
@@ -133,6 +160,42 @@ class ClinicalGatewayServiceProvider extends ServiceProvider
         ObservationsGateway::class => [
             'local' => LocalObservationsGateway::class,
             'api' => ApiObservationsGateway::class,
+        ],
+        ClientSpaceAssignmentGateway::class => [
+            'local' => LocalClientSpaceAssignmentGateway::class,
+            'api' => ApiClientSpaceAssignmentGateway::class,
+        ],
+        PrivilegeGateway::class => [
+            'local' => LocalPrivilegeGateway::class,
+            'api' => ApiPrivilegeGateway::class,
+        ],
+        DelegationGateway::class => [
+            'local' => LocalDelegationGateway::class,
+            'api' => ApiDelegationGateway::class,
+        ],
+        SensitivityRestrictionGateway::class => [
+            'local' => LocalSensitivityRestrictionGateway::class,
+            'api' => ApiSensitivityRestrictionGateway::class,
+        ],
+        PermissionCatalogGateway::class => [
+            'local' => LocalPermissionCatalogGateway::class,
+            'api' => ApiPermissionCatalogGateway::class,
+        ],
+        IdentityConfirmationGateway::class => [
+            'local' => LocalIdentityConfirmationGateway::class,
+            'api' => ApiIdentityConfirmationGateway::class,
+        ],
+        IdentityConcernGateway::class => [
+            'local' => LocalIdentityConcernGateway::class,
+            'api' => ApiIdentityConcernGateway::class,
+        ],
+        EncounterGateway::class => [
+            'local' => LocalEncounterGateway::class,
+            'api' => ApiEncounterGateway::class,
+        ],
+        PatientWorkspaceGateway::class => [
+            'local' => LocalPatientWorkspaceGateway::class,
+            'api' => ApiPatientWorkspaceGateway::class,
         ],
         EntitlementGateway::class => [
             'local' => LocalEntitlementGateway::class,

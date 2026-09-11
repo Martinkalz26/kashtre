@@ -62,6 +62,13 @@
             @livewire('clinical.patient-messages-panel', ['clientId' => $clientId, 'visitId' => $visitId])
             @livewire('clinical.break-glass-episode-review', ['episodeId' => session('break_glass_episode_id')])
             @livewire('clinical.audit-trail', ['clientId' => $clientId])
+
+            {{-- SRD v6.1 Phase 2 — patient identity, encounters, sensitivity & longitudinal workspace. --}}
+            @livewire('clinical.patient-workspace-panel', ['clientId' => $clientId, 'visitId' => $visitId])
+            @livewire('clinical.encounter-workspace-panel', ['clientId' => $clientId, 'visitId' => $visitId])
+            @livewire('clinical.identity-confirmations-panel', ['clientId' => $clientId, 'visitId' => $visitId])
+            @livewire('clinical.identity-concerns-panel', ['clientId' => $clientId, 'visitId' => $visitId])
+            @livewire('clinical.sensitivity-restrictions-panel', ['clientId' => $clientId, 'visitId' => $visitId])
         </div>
     </div>
 </x-app-layout>

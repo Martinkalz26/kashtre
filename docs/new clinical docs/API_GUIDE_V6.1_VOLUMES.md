@@ -16,7 +16,7 @@ EDD engagement added or changed.
 > endpoint at all yet** — there is nothing for a UI to call. Building screens against those now
 > would mean building against nothing.
 >
-> **This is a second, separate body of work from the "15 EDD Volumes" above — read [§6](#6-srd-v61-phases-1-to-10-complete)
+> **This is a second, separate body of work from the "15 EDD Volumes" above — read [§6](#6-srd-v61-phases-1-to-5-live-now)
 > if that's what you're here for.** The KashTre Clinical Module v6.1 SRD (a different, larger
 > document than the EDD volume packages — 10 "Phases" covering the whole functional baseline) is
 > being implemented phase by phase, separately from the 15 Volumes. Unlike most of the Volumes
@@ -352,12 +352,104 @@ what's new and why each piece looks the way it does.
 | High-risk privileges (9 named categories) | `/clinical/privileges*` | Live. Not yet wired into any specific order/MAR/discharge endpoint's own authorization check |
 | Delegation & cross-cover | `/clinical/delegations*` | Live |
 | Sensitivity restrictions | `/clinical/sensitivity-restrictions*` | Live as a primitive — not yet consulted by search, alerts or export endpoints |
+| Published permission catalogue (163 atomic `clinical.*` codes) | `/settings/permission-catalog*` | Live — see below |
 
 Two things explicitly **not** built, both because building them would mean either breaking a live
 v6.0 system or fabricating a Main Module contract that doesn't exist here: the SRD reassigns the
 unit master and the timezone engine to Main Module ownership, but this host's live production
 system owns both locally today — the SRD's own gap register marks this reconciliation as
-unresolved and Release Blocking, so it was left alone rather than guessed at.
+unresolved and Release Blocking, so it was left alone rather than guessed at. (The Unit Engine
+half of that reconciliation is now at least *possible* — see "Main Unit Engine / Time Engine
+consumption" below — but the local table it would replace is still the live one everything reads.)
+
+#### ⚠️ Your own bearer token is now actually verified — this changes how you should authenticate
+
+Before this pass, Clinical only knew how to verify a locally-signed RS256 JWT — a format Main has
+never actually issued. Any real Main-issued session token sent as `Authorization: Bearer ...` was
+silently unverifiable and fell back to the older forwarded-header transport
+(`X-User-Id`/`X-User-Roles`, API_GUIDE.md §1). **That is fixed.** Clinical now recognizes an opaque
+Sanctum token by shape (`{numeric-id}|{plaintext}`, no dots) and calls your own
+`POST /v1/auth/introspect` to verify it, using the same `X-Api-Key` credential already configured
+between us. Concretely:
+
+- **Forward your caller's own session token as `Authorization: Bearer <token>`** wherever you
+  already know it, instead of (or alongside) the `X-User-Id`/`X-User-Roles` headers. Clinical will
+  identify the user, their duty roles and their tenant from your own introspection response — no
+  separate registration step needed on your side.
+- **A token that introspects `active: false`, or that we can't reach you to verify, is now
+  refused outright (`401`)** — including if a valid-looking `X-User-Id` header rides alongside it.
+  We deliberately do not fall back to trusting the header once a token has been presented and
+  failed to verify; a request with no token at all still uses the header transport exactly as
+  before.
+- **Result caching:** a positive introspection is cached for 60 seconds per token (configurable
+  our side). If you suspend a user or revoke a session, expect up to ~60s before Clinical reflects
+  that — there is currently no push-invalidation from your side to shorten this window; flag it to
+  us if that's too slow for a workflow you're building.
+- This only changes *how identity is established*; every existing endpoint, permission and
+  response shape is unaffected.
+
+#### New: Main Unit Engine / Time Engine consumption
+
+Three of your real Time Engine endpoints and your Unit Engine's core catalogue/conversion
+endpoints are now consumed from Clinical, on **the calling clinician's own forwarded bearer
+token** — not our service key — because your `unit-engine/*`/`time-engine/*` routes sit behind
+`auth:sanctum`, unlike everything else we call on you.
+
+```http
+GET  /api/v1/clinical/main/unit-engine/units?q=mmol
+GET  /api/v1/clinical/main/unit-engine/units/{unitPublicId}
+POST /api/v1/clinical/main/unit-engine/conversions/preview   { "value": "16.0",
+     "source_unit_public_id": "MMOL_L", "target_unit_public_id": "MG_DL",
+     "context": { "analyte_public_id": "GLUCOSE" } }          // preview: no side effects
+POST /api/v1/clinical/main/unit-engine/conversions/execute    // same body — the committing form
+→ 200 { "data": { "status": "SUCCESS", "source": {...}, "target": {...},
+                  "provenance": { "rulePublicId": "...", "ruleVersion": 1 } } }
+// 422 UNIT_CONVERSION_UNVERIFIED if your Unit Engine itself returns 422 (dimensional
+// mismatch, missing context) — we never silently relabel a value under a different unit
+
+GET  /api/v1/clinical/main/time-engine/now
+GET  /api/v1/clinical/main/time-engine/timezones
+POST /api/v1/clinical/main/time-engine/resolve   { "facility_id": "FAC-1", "purpose": "CLINICAL_EVENT" }
+→ 200 { "data": { "ianaId": "Africa/Kampala", "resolutionPath": "FACILITY", "usedFallback": false } }
+```
+
+**Every one of these requires the caller to have authenticated with a real Main bearer token**
+(see the introspection note above) — calling any of them with only the service key or the legacy
+header transport returns `422 MAIN_ON_BEHALF_OF_TOKEN_REQUIRED`, since there is no user session to
+act on behalf of. Nothing in Clinical calls these endpoints internally yet (no CDE/observation
+write path has been migrated off the local unit master) — they exist and are tested, but today
+only reachable if you call them directly through Clinical.
+
+#### New: published permission catalogue
+
+```http
+GET /api/v1/settings/permission-catalog                          // all 163, or filter:
+GET /api/v1/settings/permission-catalog?resource_family=note      // 14 clinical.note.* codes
+GET /api/v1/settings/permission-catalog?risk_tier=CRITICAL
+GET /api/v1/settings/permission-catalog?search=cosign
+→ 200 { "data": [ { "code": "clinical.note.sign", "resource_family": "note", "action": "sign",
+          "risk_tier": "CRITICAL", "default_scope": "ASSIGNED_PATIENTS",
+          "requires_credential": true, "break_glass_eligible": true, "audit_level": "FULL",
+          "introduced_in_phase": "Phase 3", "status": "ACTIVE" }, ... ],
+        "meta": { "count": 163, "active_count": 163, "families": ["note", "order", ...] } }
+
+POST /api/v1/settings/permission-catalog
+{ "code": "clinical.example.approve", "description": "...", "risk_tier": "HIGH" }
+→ 201 { "data": { ..., "resource_family": "example", "action": "approve" } }
+// resource_family/action are always derived server-side from the code, not accepted as input
+
+POST /api/v1/settings/permission-catalog/{id}/deactivate   {}   // retire — never deleted
+```
+
+**This is the atomic-code catalogue only — Clinical does not assign these codes to users.**
+Per CLN-OWN-011's own split: Clinical publishes what a code means (risk tier, whether it requires
+a credential or is break-glass-eligible); you register it and assign it to users/title bundles on
+your side. **A real gap found while building this, worth knowing before you build against it: most
+of these 163 codes are not actually enforced anywhere yet** — several endpoints that clearly
+should check one (encounter close/reopen, care-relationship create/end, ward census/patient-list
+reads) currently accept any caller who clears the outer service-key/care-relationship gate. Don't
+assume a `403` for "wrong permission" on those specific actions today; that enforcement is planned,
+not yet wired, and is being tracked and closed incrementally rather than landed all at once.
 
 ### Phase 2 — Patient/encounter context
 
@@ -365,10 +457,95 @@ unresolved and Release Blocking, so it was left alone rather than guessed at.
 | --- | --- | --- |
 | Positive patient identification (generalizes MAR's 5-Rights to 7 more action types) | `POST /clinical/patients/{patientId}/identity-confirmations` | Live |
 | Identity-concern reporting (report only — no merge) | `/clinical/patients/{patientId}/identity-concerns`, `/clinical/identity-concerns*` | Live |
+| Encounter lifecycle: create, transition, closure-check, close, reopen | `/clinical/encounters*` | Live — see below |
+| Patient workspace: banner, longitudinal timeline, patient lists | `/clinical/patients/{patientId}/banner`, `/timeline`, `/clinical/patient-lists` | Live — see below |
 
 The SRD's own gap register flags "who owns encounter lifecycle" and "who owns bed administration"
 as unresolved — both already have live answers in this host (Main owns `visit_id`; Clinical owns
-beds), so neither was rebuilt against the SRD's alternative model.
+beds), so neither was rebuilt against the SRD's alternative model. What Clinical *does* own here is
+an operational encounter-workspace record layered on top of your `visit_id` (below) — additive,
+never a claim to your authority over the encounter concept itself.
+
+#### New: encounter lifecycle
+
+```http
+POST /api/v1/clinical/encounters
+{ "patient_id": "CL-00001234", "visit_id": "VIS-2026-001245",
+  "encounter_class": "INPATIENT",     // OUTPATIENT | EMERGENCY | INPATIENT | DAY_CASE |
+                                       // VIRTUAL | HOME_COMMUNITY | OBSERVATION
+  "service": "General Medicine", "facility_id": "FAC-1",
+  "responsible_clinician_id": 104, "initial_client_space_id": 12 }
+→ 201 { "data": { "id": 1, "status": "PLANNED", "minimum_data_pending": false, ... } }
+// 422 ENCOUNTER_ALREADY_EXISTS if an active encounter already exists for this patient+visit
+// EMERGENCY-class encounters missing service/reason are created anyway with
+// minimum_data_pending: true, rather than blocked (CLN-P2-ENC-006)
+
+GET /api/v1/clinical/patients/{patientId}/encounters
+GET /api/v1/clinical/encounters/{encounter}
+
+POST /api/v1/clinical/encounters/{encounter}/status   { "status": "ARRIVED", "reason": "..." }
+→ 200 { "data": { "status": "ARRIVED", ... } }
+// 422 ILLEGAL_ENCOUNTER_TRANSITION with a "permitted" array if the target status isn't
+// reachable from the current one — the full state machine is in ClinicalEncounter::TRANSITIONS
+
+GET  /api/v1/clinical/encounters/{encounter}/closure-checks
+→ 200 { "data": { "ready": false, "items": { "outstanding_orders": 0,
+        "outstanding_critical_results": 1, "open_medication_reconciliations": 0,
+        "unsigned_notes": 1, "open_tasks": 0 } } }
+
+POST /api/v1/clinical/encounters/{encounter}/close   { "override": false }
+→ 422 ENCOUNTER_CLOSURE_ITEMS_OUTSTANDING (with the same "items" breakdown) unless clear or overridden
+→ 422 ENCOUNTER_NOT_FINISHED unless the encounter is already FINISHED (a distinct status
+     from CLOSED — closure checks run between the two, CLN-P2-CLS-003)
+
+POST /api/v1/clinical/encounters/{encounter}/reopen   { "reason": "required, non-empty" }
+→ 200 { "data": { "status": "IN_PROGRESS", "reopened_at": "...", "reopen_reason": "..." } }
+// the original closure event is preserved, never erased — closed_at/closed_by_user_id
+// on the encounter row are untouched, and both events remain in status_events history
+```
+
+**⚠️ Behavior you should know about if you were ever sending `changed_by_user_id` /
+`closed_by_user_id` / `reopened_by_user_id` explicitly:** a real bug was found and fixed this
+pass — these request fields used to be trusted outright, so any caller could attribute a status
+change, closure or reopen to an arbitrary user id. **Your own verified identity (from the bearer
+token or header transport, see Phase 1 above) now always wins when present** — the request field
+is only used as a fallback for genuine service-to-service calls with no identity to resolve. If
+you rely on this field to attribute an action to a specific user, make sure you're authenticating
+as that user (forward their token) rather than sending their id as a plain field.
+
+**Not yet enforced:** `clinical.encounter.close`/`.reopen`/`.create` and
+`clinical.care_assignment.manage` are published permission codes (see the catalogue above) but are
+not yet checked on these endpoints — same status as the rest of the "not yet enforced" note there.
+
+#### New: patient workspace (banner, timeline, lists)
+
+```http
+GET /api/v1/clinical/patients/{patientId}/banner?visit_id=...&viewing_user_id=104
+→ 200 { "data": {
+    "patient_id": "...", "visit_id": "...",
+    "encounter": { "id": 1, "encounter_class": "INPATIENT", "status": "IN_PROGRESS",
+                   "service": "...", "facility_id": "...", "actual_start": "..." },
+    "location": { "client_space_id": 12, "ward_name": "General Ward", "room_number": "..." },
+    "responsibility": { ...CareAssignmentService::resolveForPatient() shape... },
+    "safety_alerts": [ { "id": 1, "source": "LABORATORY", "alert_label": "...",
+                          "severity_tier": "CRITICAL", "created_at": "..." } ],
+    "confidentiality": { "restricted": false, "break_glass_active": false } } }
+// "confidentiality.restricted" is a plain boolean — the actual sensitivity label/reason is
+// never included here regardless of caller authorization (CLN-P2-BNR-004)
+
+GET /api/v1/clinical/patients/{patientId}/timeline?visit_id=...&limit=100
+→ 200 { "data": [ { "type": "OBSERVATION", "id": 55, "status": "FINAL",
+                     "author_user_id": 104, "occurred_at": "...", "summary": "SPO2" }, ... ] }
+// merges notes/observations/orders/problems, ordered by each entry's own clinically
+// meaningful time (not created_at) with a deterministic tie-break — but note: no entry
+// currently carries which encounter/visit it belongs to, and only visit_id/limit can filter
+
+GET /api/v1/clinical/patient-lists?type=my_patients&user_id=104&role_codes[]=WARD_NURSE
+// type: my_patients | my_team | covering_patients | recent_patients
+```
+
+Distinct from the existing `GET /clinical/handover` and ward-census endpoints (API_GUIDE.md §2.2,
+§10.x) — this is the general-purpose "open a patient's chart" projection, not a shift or ward view.
 
 ### Phase 3 — Clinical documentation and the legal record
 
@@ -472,10 +649,6 @@ Deliberately not built this pass: an independent-double-check requirement for hi
 medications as its own workflow — `MarAdministration.witnessed_by_user_id` already exists on the
 live administration record for this purpose, so no new capability was needed there.
 
-**Main-side UI:** `MedicationReconciliationPanel` and `MedicationAdverseEventsPanel`
-(`resources/views/livewire/clinical/medication-reconciliation-panel.blade.php` /
-`medication-adverse-events-panel.blade.php`), both on the patient chart page.
-
 ### Phase 7 — Observations
 
 The existing CDE/Template/Schedule pipeline (`Cde`, `CdeGroup`, `CdeTemplate`, `CdeObservation`,
@@ -519,10 +692,6 @@ place them into), and emitting an idempotent downstream correction event through
 external consumers. Both would mean touching several other mature subsystems' own models, not
 just this one's.
 
-**Main-side UI:** folded into the existing `CaptureObservations` panel's flowsheet — each row now
-carries Correct / Entered-in-error / Cancel actions, opening an inline reason (and, for a
-correction, a new value) form.
-
 ### Phase 8 — Results, diagnostic reports and closed-loop follow-up
 
 The live LIMS/RIS webhook ingestion pipeline (`LimsIntegrationProxyService`,
@@ -565,11 +734,6 @@ pipeline's existing validation/rejection handling out into the SRD's own named
 RECEIVED→…→QUARANTINED/REJECTED stage labels — today's webhook-level HTTP validation and logging
 already perform the equivalent job without those exact state names, and relabelling a live,
 integrated pipeline is a bigger rework than this pass's scope.
-
-**Main-side UI:** a new `DiagnosticReportCorrectionsPanel` (operates on a report id already known
-from elsewhere on the chart — no new "list reports" endpoint exists in this pass, same shape as
-Care Transitions' discharge-document flow). The critical-alert closed-loop steps are folded into
-the existing `CriticalAlertsFeed` dashboard badge.
 
 ### Phase 9 — Handover, transitions, discharge and continuity of care
 
@@ -624,9 +788,6 @@ closure (§9–§13) are not attempted this pass — each is a substantial capab
 and the discharge-document half of it already has a start via `IssueDischargeDocument`
 ([§1](#1-live-now-care-transitions-volume-8)).
 
-**Main-side UI:** a new `HandoverRecordsPanel`, distinct from the existing `ShiftHandoverBoard`
-(which stays exactly as-is against the older stateless projection).
-
 ### Phase 10 — Specialty extensions, interoperability, reporting and release assurance
 
 No new code from this pass. Phase 10 is explicitly a consolidation chapter — its own Document
@@ -666,6 +827,7 @@ This closes the phase-by-phase SRD v6.1 audit (Phases 1–10).
 
 - **Full v6.0-era API contract:** [API_GUIDE.md](API_GUIDE.md) — read this first if you haven't.
 - **Why something differs from a specification:** [DECISION_REGISTER.md](DECISION_REGISTER.md)
+- **Overall build status:** [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 
 If you need one of the "not yet exposed" volumes prioritised for a real endpoint, say which
 screen you're trying to build — that determines which Actions actually need a Controller in front
