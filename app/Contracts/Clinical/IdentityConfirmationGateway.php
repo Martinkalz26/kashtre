@@ -12,7 +12,11 @@ use App\Support\Clinical\ClinicalActor;
 interface IdentityConfirmationGateway
 {
     /**
-     * @param  array{action_type: string, confirmed_by_user_id: int, method?: ?string, notes?: ?string}  $payload
+     * identifiers_used is required by Clinical (confirmed live 2026-09-11 —
+     * neither source doc states this) and must be a non-empty array, e.g.
+     * ['NAME', 'DOB'].
+     *
+     * @param  array{action_type: string, confirmed_by_user_id: int, identifiers_used: array<int, string>, method?: ?string, notes?: ?string}  $payload
      * @return array<string, mixed>
      */
     public function confirm(ClinicalActor $actor, string $patientId, array $payload): array;

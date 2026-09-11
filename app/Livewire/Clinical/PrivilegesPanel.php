@@ -101,7 +101,8 @@ class PrivilegesPanel extends Component
                 'granted_by' => Auth::user()->name,
             ]);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         } catch (Exception $e) {
@@ -130,7 +131,8 @@ class PrivilegesPanel extends Component
         try {
             app(PrivilegeGateway::class)->suspend($this->actor(), $privilegeId, $this->suspendReason);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }
@@ -148,7 +150,8 @@ class PrivilegesPanel extends Component
         try {
             app(PrivilegeGateway::class)->reinstate($this->actor(), $privilegeId);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }

@@ -100,7 +100,8 @@ class ClientSpaceAssignmentsPanel extends Component
                 'approving_authority' => Auth::user()->name,
             ]);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         } catch (Exception $e) {
@@ -123,7 +124,8 @@ class ClientSpaceAssignmentsPanel extends Component
         try {
             app(ClientSpaceAssignmentGateway::class)->end($this->actor(), $assignmentId, 'Ended from Client-Space Assignments panel.');
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }

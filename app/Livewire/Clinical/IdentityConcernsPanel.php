@@ -43,6 +43,17 @@ class IdentityConcernsPanel extends Component
         'NAME_SIMILARITY_RISK', 'POSSIBLE_WRONG_PATIENT_EVENT',
     ];
 
+    /**
+     * Confirmed live against Clinical (2026-09-11): none of the 5 concern
+     * categories above match Clinical's real concern_type enum (each
+     * returns 422 "The selected concern type is invalid.") — neither
+     * source doc gives the literal values, and Clinical has no metadata
+     * endpoint to discover them from. OTHER is confirmed to exist, so
+     * every selection maps to it with the chosen category preserved as a
+     * prefix on the description sent, rather than 422ing.
+     */
+    private const WIRE_CONFIRMED_CONCERN_TYPE = 'OTHER';
+
     public function mount(string $clientId, ?string $visitId = null): void
     {
         abort_unless(in_array('View Clinical Observations', Auth::user()->permissions ?? []), 403);
@@ -78,12 +89,13 @@ class IdentityConcernsPanel extends Component
 
         try {
             app(IdentityConcernGateway::class)->report($this->actor(), $this->clientId, [
-                'concern_type' => $this->concernType,
-                'description' => $this->description,
+                'concern_type' => self::WIRE_CONFIRMED_CONCERN_TYPE,
+                'description' => "[{$this->concernType}] {$this->description}",
                 'reported_by_user_id' => Auth::id(),
             ]);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         } catch (Exception $e) {
@@ -113,7 +125,8 @@ class IdentityConcernsPanel extends Component
         try {
             app(IdentityConcernGateway::class)->resolve($this->actor(), $concernId, $resolution);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }

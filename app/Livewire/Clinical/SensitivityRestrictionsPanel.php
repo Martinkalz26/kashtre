@@ -90,7 +90,8 @@ class SensitivityRestrictionsPanel extends Component
                 'reason' => $this->reason,
             ]);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         } catch (Exception $e) {
@@ -118,7 +119,8 @@ class SensitivityRestrictionsPanel extends Component
         try {
             app(SensitivityRestrictionGateway::class)->lift($this->actor(), $restrictionId, $this->liftReason);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }

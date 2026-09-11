@@ -19,6 +19,9 @@ class ApiIdentityConfirmationGateway implements IdentityConfirmationGateway
             array_filter([
                 'action_type' => $payload['action_type'],
                 'confirmed_by_user_id' => $payload['confirmed_by_user_id'],
+                // Required by Clinical — confirmed live 2026-09-11, a 422
+                // without it ("The identifiers used field is required.").
+                'identifiers_used' => $payload['identifiers_used'],
                 'method' => $payload['method'] ?? null,
                 'notes' => $payload['notes'] ?? null,
             ], fn ($v) => $v !== null),

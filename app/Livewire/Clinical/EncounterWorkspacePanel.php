@@ -111,7 +111,8 @@ class EncounterWorkspacePanel extends Component
             ]);
         } catch (ClinicalApiException $e) {
             // e.g. 422 ENCOUNTER_ALREADY_EXISTS
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         } catch (Exception $e) {
@@ -152,7 +153,8 @@ class EncounterWorkspacePanel extends Component
             app(EncounterGateway::class)->transition($this->actor(), $this->activeEncounterId, $this->newStatus, $this->statusReason ?: null);
         } catch (ClinicalApiException $e) {
             // e.g. 422 ILLEGAL_ENCOUNTER_TRANSITION, with the permitted array in the message
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }
@@ -172,7 +174,8 @@ class EncounterWorkspacePanel extends Component
         try {
             $this->closureChecks = app(EncounterGateway::class)->closureChecks($this->actor(), $this->activeEncounterId);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
         }
     }
 
@@ -191,7 +194,8 @@ class EncounterWorkspacePanel extends Component
             app(EncounterGateway::class)->close($this->actor(), $this->activeEncounterId, $override);
         } catch (ClinicalApiException $e) {
             // e.g. 422 ENCOUNTER_CLOSURE_ITEMS_OUTSTANDING or ENCOUNTER_NOT_FINISHED
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }
@@ -216,7 +220,8 @@ class EncounterWorkspacePanel extends Component
         try {
             app(EncounterGateway::class)->reopen($this->actor(), $this->activeEncounterId, $this->reopenReason);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }

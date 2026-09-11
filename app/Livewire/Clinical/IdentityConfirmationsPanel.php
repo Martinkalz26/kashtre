@@ -31,6 +31,9 @@ class IdentityConfirmationsPanel extends Component
 
     public string $method = 'VERBAL_AND_BAND';
 
+    /** @var array<int, string> */
+    public array $identifiersUsed = ['NAME', 'DOB'];
+
     public string $notes = '';
 
     public ?string $resultMessage = null;
@@ -41,6 +44,19 @@ class IdentityConfirmationsPanel extends Component
         'SPECIMEN_COLLECTION', 'BLOOD_TRANSFUSION', 'PROCEDURE_OR_SURGERY',
         'IMAGING_STUDY', 'DISCHARGE', 'PATIENT_HANDOVER', 'DOCUMENT_RELEASE',
     ];
+
+    public const IDENTIFIER_OPTIONS = ['NAME', 'DOB', 'WRISTBAND', 'MRN', 'PATIENT_ID', 'PHOTO'];
+
+    /**
+     * Confirmed live against Clinical (2026-09-11): of the SRD's 7 action
+     * types above, only SPECIMEN_COLLECTION matches Clinical's actual
+     * action_type enum — the other 6 all return 422 "The selected action
+     * type is invalid." Neither source doc gives the literal enum, and
+     * Clinical has no metadata endpoint to discover it from. OTHER is
+     * confirmed to exist, so an unmatched selection maps to it with the
+     * chosen label preserved in the notes sent, rather than 422ing.
+     */
+    private const WIRE_CONFIRMED_ACTION_TYPES = ['SPECIMEN_COLLECTION'];
 
     public function mount(string $clientId, ?string $visitId = null): void
     {
@@ -63,6 +79,7 @@ class IdentityConfirmationsPanel extends Component
         return view('livewire.clinical.identity-confirmations-panel', [
             'rows' => $rows,
             'actionTypes' => self::ACTION_TYPES,
+            'identifierOptions' => self::IDENTIFIER_OPTIONS,
         ]);
     }
 
@@ -70,20 +87,32 @@ class IdentityConfirmationsPanel extends Component
     {
         abort_unless(in_array('Add Clinical Observations', Auth::user()->permissions ?? []), 403);
 
-        $this->validate(['actionType' => ['required', 'string']]);
+        $this->validate([
+            'actionType' => ['required', 'string'],
+            'identifiersUsed' => ['required', 'array', 'min:1'],
+        ]);
 
         $this->errorMessage = null;
         $this->resultMessage = null;
 
+        $wireActionType = in_array($this->actionType, self::WIRE_CONFIRMED_ACTION_TYPES, true)
+            ? $this->actionType
+            : 'OTHER';
+        $notes = $wireActionType === 'OTHER'
+            ? trim("[{$this->actionType}] {$this->notes}")
+            : ($this->notes ?: null);
+
         try {
             app(IdentityConfirmationGateway::class)->confirm($this->actor(), $this->clientId, [
-                'action_type' => $this->actionType,
+                'action_type' => $wireActionType,
                 'confirmed_by_user_id' => Auth::id(),
                 'method' => $this->method,
-                'notes' => $this->notes ?: null,
+                'identifiers_used' => $this->identifiersUsed,
+                'notes' => $notes,
             ]);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         } catch (Exception $e) {

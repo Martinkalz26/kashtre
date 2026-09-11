@@ -114,7 +114,8 @@ class DelegationsPanel extends Component
                 'client_space_id' => $this->clientSpaceId !== '' ? (int) $this->clientSpaceId : null,
             ]);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         } catch (Exception $e) {
@@ -143,7 +144,8 @@ class DelegationsPanel extends Component
         try {
             app(DelegationGateway::class)->revoke($this->actor(), $delegationId, $this->revokeReason);
         } catch (ClinicalApiException $e) {
-            $this->errorMessage = $e->getMessage();
+            $fieldErrors = collect($e->errors())->filter(fn ($v) => is_array($v))->flatten();
+            $this->errorMessage = $fieldErrors->isNotEmpty() ? $fieldErrors->first() : $e->getMessage();
 
             return;
         }

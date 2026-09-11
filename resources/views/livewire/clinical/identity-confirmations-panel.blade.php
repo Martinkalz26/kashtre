@@ -45,5 +45,19 @@
             <input type="text" wire:model="notes" class="w-full text-sm rounded border-gray-300 dark:bg-gray-700 dark:border-gray-600" />
         </div>
     </div>
+
+    <div class="mb-3">
+        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Identifiers checked</label>
+        <div class="flex flex-wrap gap-3">
+            @foreach ($identifierOptions as $option)
+                <label class="inline-flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" wire:model="identifiersUsed" value="{{ $option }}" class="rounded border-gray-300 dark:bg-gray-700 dark:border-gray-600" />
+                    {{ str_replace('_', ' ', $option) }}
+                </label>
+            @endforeach
+        </div>
+        @error('identifiersUsed') <div class="text-[10px] text-red-600 mt-1">{{ $message }}</div> @enderror
+    </div>
+
     <button wire:click="confirm" class="text-sm text-white bg-blue-600 hover:bg-blue-700 rounded px-4 py-2">Confirm identity</button>
 </div>
